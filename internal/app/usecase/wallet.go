@@ -3,9 +3,10 @@ package usecase
 import (
 	"context"
 	"errors"
+	"time"
+
 	"github.com/cahyacaa/test-julo/internal/app/domain"
 	"github.com/cahyacaa/test-julo/internal/app/pkg/redis"
-	"time"
 )
 
 const walletToken = "cb04f9f26632ad602f14acef21c58f58f6fe5fb55a"
