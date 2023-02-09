@@ -112,3 +112,12 @@ func (r *RedisService) Hget(ctx context.Context, key, field string, data interfa
 
 	return nil
 }
+
+func (r *RedisService) HgetAll(ctx context.Context, key string) (map[string]string, error) {
+	result, err := r.redisDB.HGetAll(ctx, key).Result()
+	if err != nil {
+		return map[string]string{}, err
+	}
+
+	return result, nil
+}

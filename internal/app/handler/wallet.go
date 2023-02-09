@@ -89,6 +89,30 @@ func (w *Wallet) CheckBalance(c *gin.Context) {
 	c.JSON(response.StatusCode, response)
 }
 
+func (w *Wallet) ViewTransactions(c *gin.Context) {
+	var customerID string
+
+	if val, ok := c.Get("customer_id"); ok {
+		customerID = val.(string)
+	}
+
+	transactions, err := w.WalletUsecase.ViewTransactions(c, customerID)
+
+	if err != nil {
+		response := responseFormat.HandleError(err.Error(), http.StatusInternalServerError)
+		c.JSON(response.StatusCode, response)
+		return
+	}
+
+	//convert to response field
+	data := domain.TransactionsResponse{
+		Transactions: transactions,
+	}
+
+	response := responseFormat.HandleSuccess[domain.TransactionsResponse](data)
+	c.JSON(response.StatusCode, response)
+}
+
 func (w *Wallet) EnableWallet(c *gin.Context) {
 	var customerID string
 

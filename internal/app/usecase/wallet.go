@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -69,7 +70,7 @@ func (w *Wallet) CheckBalance(ctx context.Context, customerID string) (wallet do
 
 func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, amount float64) (deposits domain.DepositsData, err error) {
 	var wallet domain.WalletData
-	var depositsData domain.DepositsData
+	var transactionData domain.TransactionData
 	var lock *redislock.Lock
 
 	// Don't forget to defer Release.
@@ -77,6 +78,13 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 		errLock := lock.Release(ctx)
 		if errLock != nil {
 			err = errLock
+			return
+		}
+
+		//create failed transaction
+		transactionData.Status = domain.Failed
+		errSetFailed := w.RedisService.Hset(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
+		if errSetFailed != nil {
 			return
 		}
 	}()
@@ -95,18 +103,18 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 		return deposits, errors.New("wallet data not found")
 	}
 
-	err = w.RedisService.Hget(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &depositsData)
-	if err == nil && depositsData.ID != "" {
+	err = w.RedisService.Hget(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
+	if err == nil && transactionData.ID != "" {
 		return deposits, errors.New("reference id cannot be same")
 	}
 
-	depositsData = domain.DepositsData{
-		ID:          customerID,
-		DepositedBy: customerID,
-		Amount:      amount,
-		Type:        domain.Deposits,
-		DepositedAt: time.Now().UTC(),
-		ReferenceID: referenceID,
+	transactionData = domain.TransactionData{
+		ID:           customerID,
+		Amount:       amount,
+		Status:       domain.Success,
+		Type:         domain.Deposits,
+		TransactedAt: time.Now().UTC(),
+		ReferenceID:  referenceID,
 	}
 
 	wallet.Balance += amount
@@ -116,16 +124,16 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 		return
 	}
 
-	err = w.RedisService.Hset(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &depositsData)
+	err = w.RedisService.Hset(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
 	if err != nil {
 		return
 	}
 
 	deposits = domain.DepositsData{
-		ID:          wallet.CustomerID,
+		ID:          referenceID,
 		DepositedBy: wallet.CustomerID,
 		Amount:      amount,
-		Type:        domain.Deposits,
+		Type:        string(domain.Deposits),
 		Status:      domain.Success,
 		DepositedAt: time.Now(),
 		ReferenceID: referenceID,
@@ -135,7 +143,7 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 
 func (w *Wallet) Withdrawals(ctx context.Context, customerID, referenceID string, amount float64) (withdrawals domain.WithdrawalsData, err error) {
 	var wallet domain.WalletData
-	var depositsData domain.WithdrawalsData
+	var transactionData domain.TransactionData
 	var lock *redislock.Lock
 
 	// Don't forget to defer Release.
@@ -143,6 +151,14 @@ func (w *Wallet) Withdrawals(ctx context.Context, customerID, referenceID string
 		errLock := lock.Release(ctx)
 		if errLock != nil {
 			err = errLock
+			return
+		}
+
+		//create failed transaction
+		transactionData.Status = domain.Failed
+		errSetFailed := w.RedisService.HsetNX(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
+		if errSetFailed != nil {
+			err = errSetFailed
 			return
 		}
 	}()
@@ -161,18 +177,18 @@ func (w *Wallet) Withdrawals(ctx context.Context, customerID, referenceID string
 		return withdrawals, errors.New("withdrawals data not found")
 	}
 
-	err = w.RedisService.Hget(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &depositsData)
-	if err == nil && depositsData.ID != "" {
+	err = w.RedisService.Hget(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
+	if err == nil && transactionData.ID != "" {
 		return withdrawals, errors.New("reference id cannot be same")
 	}
 
-	depositsData = domain.WithdrawalsData{
-		ID:          customerID,
-		WithdrawnBy: customerID,
-		Amount:      amount,
-		Type:        domain.Withdrawal,
-		WithdrawnAt: time.Now().UTC(),
-		ReferenceID: referenceID,
+	transactionData = domain.TransactionData{
+		ID:           customerID,
+		Amount:       amount,
+		Status:       domain.Success,
+		Type:         domain.Withdrawal,
+		TransactedAt: time.Now().UTC(),
+		ReferenceID:  referenceID,
 	}
 
 	wallet.Balance -= amount
@@ -186,20 +202,38 @@ func (w *Wallet) Withdrawals(ctx context.Context, customerID, referenceID string
 		return
 	}
 
-	err = w.RedisService.Hset(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &depositsData)
+	err = w.RedisService.Hset(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
 	if err != nil {
 		return
 	}
 
 	withdrawals = domain.WithdrawalsData{
-		ID:          wallet.CustomerID,
-		WithdrawnBy: wallet.CustomerID,
+		ID:          referenceID,
+		WithdrawnBy: customerID,
 		Amount:      amount,
-		Type:        domain.Withdrawal,
 		Status:      domain.Success,
-		WithdrawnAt: time.Now(),
+		WithdrawnAt: transactionData.TransactedAt,
+		Type:        string(domain.Withdrawal),
 		ReferenceID: referenceID,
 	}
+	return
+}
+
+func (w *Wallet) ViewTransactions(ctx context.Context, customerID string) (transactions []domain.TransactionData, err error) {
+
+	if transactionData, errGetData := w.RedisService.HgetAll(ctx, helpers.GenerateKey(customerID, domain.Transaction)); errGetData == nil {
+		for _, val := range transactionData {
+			var t domain.TransactionData
+			err := json.Unmarshal([]byte(val), &t)
+			if err == nil {
+				transactions = append(transactions, t)
+			}
+		}
+	} else {
+		err = errGetData
+		return
+	}
+
 	return
 }
 

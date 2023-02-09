@@ -2,12 +2,6 @@ package domain
 
 import "time"
 
-type DepositType string
-
-const (
-	Deposits DepositType = "deposits"
-)
-
 type DepositsRequest struct {
 	Amount      float64 `form:"amount" binding:"required"`
 	ReferenceID string  `form:"reference_id" binding:"required"`
@@ -23,6 +17,6 @@ type DepositsData struct {
 	Amount      float64      `json:"amount"`
 	Status      WalletStatus `json:"status"`
 	DepositedAt time.Time    `json:"deposited_at"`
-	Type        DepositType  `json:"type"`
-	ReferenceID string       `form:"reference_id" binding:"required"`
+	Type        string       `json:"type"`
+	ReferenceID string       `json:"reference_id"`
 }
