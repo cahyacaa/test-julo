@@ -33,6 +33,12 @@ func (w *Wallet) InitWalletAccount(c *gin.Context) {
 
 	token, err := w.WalletUsecase.InitWallet(c, req.CustomerXID)
 
+	if err != nil {
+		response := responseFormat.HandleError(err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	}
+
 	//convert to response field
 	data := domain.InitWalletAccountResponse{
 		Token: token,
@@ -55,16 +61,19 @@ func (w *Wallet) CheckBalance(c *gin.Context) {
 	if err != nil {
 		response := responseFormat.HandleError(err.Error(), http.StatusInternalServerError)
 		c.JSON(response.StatusCode, response)
+		return
 	}
 
 	//convert to response field
 	data := domain.WalletResponse{
 		Wallet: struct {
+			ID        string              `json:"id"`
 			OwnedBy   string              `json:"owned_by"`
-			Balance   int64               `json:"balance"`
+			Balance   float64             `json:"balance"`
 			Status    domain.WalletStatus `json:"status"`
 			EnabledAt time.Time           `json:"enabled_at"`
 		}{
+			ID:        wallet.CustomerID,
 			OwnedBy:   wallet.CustomerID,
 			Balance:   wallet.Balance,
 			EnabledAt: wallet.EnabledAt,
@@ -98,11 +107,13 @@ func (w *Wallet) EnableWallet(c *gin.Context) {
 	//convert to response field
 	data := domain.WalletResponse{
 		Wallet: struct {
+			ID        string              `json:"id"`
 			OwnedBy   string              `json:"owned_by"`
-			Balance   int64               `json:"balance"`
+			Balance   float64             `json:"balance"`
 			Status    domain.WalletStatus `json:"status"`
 			EnabledAt time.Time           `json:"enabled_at"`
 		}{
+			ID:        wallet.CustomerID,
 			OwnedBy:   wallet.CustomerID,
 			Balance:   wallet.Balance,
 			EnabledAt: wallet.EnabledAt,
@@ -115,4 +126,33 @@ func (w *Wallet) EnableWallet(c *gin.Context) {
 	}
 	response := responseFormat.HandleSuccess[domain.WalletResponse](data)
 	c.JSON(response.StatusCode, response)
+}
+
+func (w *Wallet) Deposits(c *gin.Context) {
+	var req domain.DepositsRequest
+	var customerID string
+
+	err := c.Bind(&req)
+	if err != nil {
+		l := err.(validator.ValidationErrors)[0].Field()
+		response := responseFormat.HandleError(l, http.StatusBadRequest)
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	}
+
+	if val, ok := c.Get("customer_id"); ok {
+		customerID = val.(string)
+	}
+
+	deposits, err := w.WalletUsecase.Deposits(c, customerID, req.ReferenceID, req.Amount)
+	if err != nil {
+		response := responseFormat.HandleError(err.Error(), http.StatusBadRequest)
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	}
+
+	data := domain.DepositsResponse{Deposits: deposits}
+	response := responseFormat.HandleSuccess[domain.DepositsResponse](data)
+	c.JSON(response.StatusCode, response)
+
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+
 	"github.com/cahyacaa/test-julo/internal/app/handler"
 	"github.com/cahyacaa/test-julo/internal/app/pkg/middleware"
 	"github.com/cahyacaa/test-julo/internal/app/pkg/redis"
@@ -9,11 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Router(ctx context.Context, r *gin.Engine) *gin.Engine {
+type Dependency struct {
+	RedisService redis.RedisService
+}
+
+func Router(ctx context.Context, r *gin.Engine, dep Dependency) *gin.Engine {
 
 	//init dependency
-	redisService := redis.NewRedisService()
-	walletUcase := usecase.NewWalletUcase(redisService)
+
+	walletUcase := usecase.NewWalletUcase(dep.RedisService)
 	walletController := handler.NewWallerHandler(walletUcase)
 
 	//router non middleware
@@ -23,13 +28,14 @@ func Router(ctx context.Context, r *gin.Engine) *gin.Engine {
 	walletRouter := r.Group("/api/v1")
 
 	// middleware for wallet router group
-	walletRouter.Use(middleware.Authorization(ctx, redisService))
+	walletRouter.Use(middleware.Authorization(ctx, dep.RedisService))
 	walletRouter.POST("/wallet", walletController.EnableWallet)
 	walletRouter.PATCH("/wallet")
 
 	walletFeatureRouter := walletRouter.Group("")
-	walletFeatureRouter.Use(middleware.CheckWalletStatusHandler(ctx, redisService))
+	walletFeatureRouter.Use(middleware.CheckWalletStatusHandler(ctx, dep.RedisService))
 	walletFeatureRouter.GET("/wallet", walletController.CheckBalance)
+	walletFeatureRouter.POST("/wallet/deposits", walletController.Deposits)
 
 	return r
 }

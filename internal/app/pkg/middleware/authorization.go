@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"context"
+	"net/http"
+	"strings"
+
+	"github.com/cahyacaa/test-julo/internal/app/helpers"
 	"github.com/cahyacaa/test-julo/internal/app/pkg/redis"
 	responseFormat "github.com/cahyacaa/test-julo/internal/app/pkg/response_format"
 	"github.com/gin-gonic/gin"
-	"net/http"
-	"strings"
 )
 
 func Authorization(ctx context.Context, redisService redis.RedisService) gin.HandlerFunc {
@@ -39,7 +41,7 @@ func Authorization(ctx context.Context, redisService redis.RedisService) gin.Han
 			return
 		}
 
-		if err := redisService.Get(ctx, tokenInfo[1], &customerID); err != nil {
+		if err := redisService.Get(ctx, helpers.GenerateKey("auth", tokenInfo[1]), &customerID); err != nil {
 			response := responseFormat.HandleError("token not found", http.StatusUnauthorized)
 			c.AbortWithStatusJSON(response.StatusCode, response)
 			return

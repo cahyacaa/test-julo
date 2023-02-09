@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/cahyacaa/test-julo/cmd/config"
 	"github.com/cahyacaa/test-julo/internal/app/controller"
 	"github.com/cahyacaa/test-julo/internal/app/pkg/middleware"
 	"github.com/cahyacaa/test-julo/internal/app/pkg/redis"
 	"github.com/gin-gonic/gin"
-	"log"
-	"net/http"
 )
 
 func main() {
@@ -25,7 +26,9 @@ func main() {
 	r.Use(middleware.CORSMiddleware())
 
 	//init redis
-	err := redis.InitRedis(config.GlobalConfig.Cache)
+	redisService := redis.NewRedisService()
+
+	err := redisService.InitRedis(config.GlobalConfig.Cache)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,7 +41,9 @@ func main() {
 	})
 
 	//wallet router
-	r = controller.Router(ctx, r)
+	r = controller.Router(ctx, r, controller.Dependency{
+		RedisService: redisService,
+	})
 
 	err = r.Run(fmt.Sprintf(":%s", config.GlobalConfig.App.Port))
 	if err != nil {

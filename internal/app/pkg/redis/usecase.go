@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 // SetNX a key/value
@@ -13,7 +14,7 @@ func (r *RedisService) SetNX(ctx context.Context, key string, data interface{}) 
 		return err
 	}
 
-	result := RedisInstance.SetNX(ctx, key, value, 0)
+	result := r.redisDB.SetNX(ctx, key, value, 0)
 
 	if result.Err() != nil {
 		return result.Err()
@@ -29,7 +30,7 @@ func (r *RedisService) Set(ctx context.Context, key string, data interface{}) er
 		return err
 	}
 
-	result := RedisInstance.Set(ctx, key, value, 0)
+	result := r.redisDB.Set(ctx, key, value, 0)
 
 	if result.Err() != nil {
 		return result.Err()
@@ -41,7 +42,7 @@ func (r *RedisService) Set(ctx context.Context, key string, data interface{}) er
 // Exists check a key
 func (r *RedisService) Exists(ctx context.Context, key string) bool {
 
-	result, err := RedisInstance.Exists(ctx, key).Result()
+	result, err := r.redisDB.Exists(ctx, key).Result()
 
 	if result == 0 || err != nil {
 		return false
@@ -53,7 +54,7 @@ func (r *RedisService) Exists(ctx context.Context, key string) bool {
 // Get get a key
 func (r *RedisService) Get(ctx context.Context, key string, data interface{}) error {
 
-	result, err := RedisInstance.Get(ctx, key).Result()
+	result, err := r.redisDB.Get(ctx, key).Result()
 	if err != nil {
 		return err
 	}
@@ -66,25 +67,48 @@ func (r *RedisService) Get(ctx context.Context, key string, data interface{}) er
 	return nil
 }
 
-// Delete delete a key
-func (r *RedisService) Delete(ctx context.Context, key ...string) (bool, error) {
-
-	result, err := RedisInstance.Del(ctx, key...).Result()
-
-	if err != nil || result == 0 {
-		return false, nil
+func (r *RedisService) Hset(ctx context.Context, key, field string, value interface{}) error {
+	value, err := json.Marshal(value)
+	if err != nil {
+		return err
 	}
-	return true, nil
+
+	a, err := r.redisDB.HSet(ctx, key, field, value).Result()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(a)
+
+	return nil
 }
 
-// Incr increment a key value
-func (r *RedisService) Incr(ctx context.Context, key string) (int64, error) {
+func (r *RedisService) HsetNX(ctx context.Context, key, field string, value interface{}) error {
 
-	reply, err := RedisInstance.Incr(ctx, key).Result()
+	value, err := json.Marshal(value)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	return reply, nil
+	_, err = r.redisDB.HSetNX(ctx, key, field, value).Result()
 
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *RedisService) Hget(ctx context.Context, key, field string, data interface{}) error {
+	result, err := r.redisDB.HGet(ctx, key, field).Result()
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal([]byte(result), &data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

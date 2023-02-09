@@ -2,12 +2,13 @@ package middleware
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/cahyacaa/test-julo/internal/app/domain"
-	"github.com/cahyacaa/test-julo/internal/app/pkg/error"
+	"github.com/cahyacaa/test-julo/internal/app/helpers"
 	"github.com/cahyacaa/test-julo/internal/app/pkg/redis"
 	responseFormat "github.com/cahyacaa/test-julo/internal/app/pkg/response_format"
 	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 func CheckWalletStatusHandler(ctx context.Context, redisService redis.RedisService) gin.HandlerFunc {
@@ -16,14 +17,14 @@ func CheckWalletStatusHandler(ctx context.Context, redisService redis.RedisServi
 		var wallet domain.WalletData
 
 		if value, ok := c.Get("customer_id"); !ok {
-			response := responseFormat.HandleError[error.Format]("token is empty", http.StatusBadRequest)
+			response := responseFormat.HandleError("token is empty", http.StatusBadRequest)
 			c.AbortWithStatusJSON(response.StatusCode, response)
 			return
 		} else {
 			customerID = value.(string)
 		}
 
-		if err := redisService.Get(ctx, customerID, &wallet); err != nil {
+		if err := redisService.Get(ctx, helpers.GenerateKey(customerID, "wallet"), &wallet); err != nil {
 			response := responseFormat.HandleError("customer not found", http.StatusUnauthorized)
 			c.AbortWithStatusJSON(response.StatusCode, response)
 			return

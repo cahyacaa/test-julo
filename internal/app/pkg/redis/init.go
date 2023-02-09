@@ -3,30 +3,35 @@ package redis
 import (
 	"context"
 	"fmt"
+	"github.com/bsm/redislock"
 	"github.com/cahyacaa/test-julo/cmd/config"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // nolint:revive
-type RedisService struct{}
+type RedisService struct {
+	redisDB   *redis.Client
+	RedisLock *redislock.Client
+}
 
 func NewRedisService() RedisService {
 	return RedisService{}
 }
 
-var RedisInstance *redis.Client
-
-func InitRedis(config config.Cache) error {
-	RedisInstance = redis.NewClient(&redis.Options{
+func (r *RedisService) InitRedis(config config.Cache) error {
+	redisOpts := redis.Options{
 		Username: config.Username,
 		Password: config.Password,
 		DB:       config.DB,
 		Addr:     fmt.Sprintf("%v:%v", config.Host, config.Port),
-	})
-
-	redisStatus := RedisInstance.Ping(context.Background())
-	if redisStatus != nil {
-		return redisStatus.Err()
 	}
+	r.redisDB = redis.NewClient(&redisOpts)
+
+	redisStatus := r.redisDB.Ping(context.Background()).Err()
+	if redisStatus != nil {
+		return redisStatus
+	}
+
+	r.RedisLock = redislock.New(r.redisDB)
 	return nil
 }
