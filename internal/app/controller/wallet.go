@@ -36,6 +36,7 @@ func Router(ctx context.Context, r *gin.Engine, dep Dependency) *gin.Engine {
 	walletFeatureRouter.Use(middleware.CheckWalletStatusHandler(ctx, dep.RedisService))
 	walletFeatureRouter.GET("/wallet", walletController.CheckBalance)
 	walletFeatureRouter.POST("/wallet/deposits", walletController.Deposits)
+	walletFeatureRouter.POST("/wallet/withdrawals", walletController.Withdrawals)
 
 	return r
 }

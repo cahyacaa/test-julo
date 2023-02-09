@@ -5,8 +5,7 @@ import "time"
 type DepositType string
 
 const (
-	Deposits   DepositType = "deposits"
-	Withdrawal DepositType = "withdrawal"
+	Deposits DepositType = "deposits"
 )
 
 type DepositsRequest struct {

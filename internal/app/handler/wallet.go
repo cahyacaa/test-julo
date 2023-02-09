@@ -154,5 +154,33 @@ func (w *Wallet) Deposits(c *gin.Context) {
 	data := domain.DepositsResponse{Deposits: deposits}
 	response := responseFormat.HandleSuccess[domain.DepositsResponse](data)
 	c.JSON(response.StatusCode, response)
+}
+
+func (w *Wallet) Withdrawals(c *gin.Context) {
+	var req domain.WithdrawalsRequest
+	var customerID string
+
+	err := c.Bind(&req)
+	if err != nil {
+		l := err.(validator.ValidationErrors)[0].Field()
+		response := responseFormat.HandleError(l, http.StatusBadRequest)
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	}
+
+	if val, ok := c.Get("customer_id"); ok {
+		customerID = val.(string)
+	}
+
+	withdrawal, err := w.WalletUsecase.Withdrawals(c, customerID, req.ReferenceID, req.Amount)
+	if err != nil {
+		response := responseFormat.HandleError(err.Error(), http.StatusBadRequest)
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	}
+
+	data := domain.WithdrawalsResponse{Withdrawal: withdrawal}
+	response := responseFormat.HandleSuccess[domain.WithdrawalsResponse](data)
+	c.JSON(response.StatusCode, response)
 
 }

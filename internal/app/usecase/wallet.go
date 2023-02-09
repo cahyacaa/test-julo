@@ -73,13 +73,13 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 	var lock *redislock.Lock
 
 	// Don't forget to defer Release.
-	defer func(lock *redislock.Lock, ctx context.Context) {
+	defer func() {
 		errLock := lock.Release(ctx)
 		if errLock != nil {
 			err = errLock
 			return
 		}
-	}(lock, ctx)
+	}()
 
 	lock, err = w.RedisService.RedisLock.Obtain(ctx, helpers.GenerateKey(referenceID), 100*time.Millisecond, nil)
 	if err != nil {
@@ -104,6 +104,7 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 		ID:          customerID,
 		DepositedBy: customerID,
 		Amount:      amount,
+		Type:        domain.Deposits,
 		DepositedAt: time.Now().UTC(),
 		ReferenceID: referenceID,
 	}
@@ -124,8 +125,79 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 		ID:          wallet.CustomerID,
 		DepositedBy: wallet.CustomerID,
 		Amount:      amount,
+		Type:        domain.Deposits,
 		Status:      domain.Success,
 		DepositedAt: time.Now(),
+		ReferenceID: referenceID,
+	}
+	return
+}
+
+func (w *Wallet) Withdrawals(ctx context.Context, customerID, referenceID string, amount float64) (withdrawals domain.WithdrawalsData, err error) {
+	var wallet domain.WalletData
+	var depositsData domain.WithdrawalsData
+	var lock *redislock.Lock
+
+	// Don't forget to defer Release.
+	defer func() {
+		errLock := lock.Release(ctx)
+		if errLock != nil {
+			err = errLock
+			return
+		}
+	}()
+
+	lock, err = w.RedisService.RedisLock.Obtain(ctx, helpers.GenerateKey(referenceID), 100*time.Millisecond, nil)
+	if err != nil {
+		return
+	}
+
+	err = w.RedisService.Get(ctx, helpers.GenerateKey(customerID, domain.Wallet), &wallet)
+	if err != nil {
+		return
+	}
+
+	if wallet.CustomerID == "" {
+		return withdrawals, errors.New("withdrawals data not found")
+	}
+
+	err = w.RedisService.Hget(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &depositsData)
+	if err == nil && depositsData.ID != "" {
+		return withdrawals, errors.New("reference id cannot be same")
+	}
+
+	depositsData = domain.WithdrawalsData{
+		ID:          customerID,
+		WithdrawnBy: customerID,
+		Amount:      amount,
+		Type:        domain.Withdrawal,
+		WithdrawnAt: time.Now().UTC(),
+		ReferenceID: referenceID,
+	}
+
+	wallet.Balance -= amount
+
+	if wallet.Balance < 0 {
+		err = errors.New("insufficient balance")
+		return
+	}
+	err = w.RedisService.Set(ctx, helpers.GenerateKey(customerID, domain.Wallet), &wallet)
+	if err != nil {
+		return
+	}
+
+	err = w.RedisService.Hset(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &depositsData)
+	if err != nil {
+		return
+	}
+
+	withdrawals = domain.WithdrawalsData{
+		ID:          wallet.CustomerID,
+		WithdrawnBy: wallet.CustomerID,
+		Amount:      amount,
+		Type:        domain.Withdrawal,
+		Status:      domain.Success,
+		WithdrawnAt: time.Now(),
 		ReferenceID: referenceID,
 	}
 	return
