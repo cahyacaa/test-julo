@@ -5,24 +5,8 @@ import (
 	"encoding/json"
 )
 
-// SetNX a key/value
-func (r *RedisService) SetNX(ctx context.Context, key string, data interface{}) error {
-
-	value, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	result := RedisInstance.SetNX(ctx, key, value, 0)
-
-	if result.Err() != nil {
-		return result.Err()
-	}
-
-	return nil
-}
-
-func (r *RedisService) Set(ctx context.Context, key string, data interface{}) error {
+// Set a key/value
+func (r RedisService) Set(ctx context.Context, key string, data interface{}) error {
 
 	value, err := json.Marshal(data)
 	if err != nil {
@@ -39,7 +23,7 @@ func (r *RedisService) Set(ctx context.Context, key string, data interface{}) er
 }
 
 // Exists check a key
-func (r *RedisService) Exists(ctx context.Context, key string) bool {
+func (r RedisService) Exists(ctx context.Context, key string) bool {
 
 	result, err := RedisInstance.Exists(ctx, key).Result()
 
@@ -51,7 +35,7 @@ func (r *RedisService) Exists(ctx context.Context, key string) bool {
 }
 
 // Get get a key
-func (r *RedisService) Get(ctx context.Context, key string, data interface{}) error {
+func (r RedisService) Get(ctx context.Context, key string, data interface{}) error {
 
 	result, err := RedisInstance.Get(ctx, key).Result()
 	if err != nil {
@@ -67,7 +51,7 @@ func (r *RedisService) Get(ctx context.Context, key string, data interface{}) er
 }
 
 // Delete delete a key
-func (r *RedisService) Delete(ctx context.Context, key ...string) (bool, error) {
+func (r RedisService) Delete(ctx context.Context, key ...string) (bool, error) {
 
 	result, err := RedisInstance.Del(ctx, key...).Result()
 
@@ -75,16 +59,4 @@ func (r *RedisService) Delete(ctx context.Context, key ...string) (bool, error) 
 		return false, nil
 	}
 	return true, nil
-}
-
-// Incr increment a key value
-func (r *RedisService) Incr(ctx context.Context, key string) (int64, error) {
-
-	reply, err := RedisInstance.Incr(ctx, key).Result()
-	if err != nil {
-		return 0, err
-	}
-
-	return reply, nil
-
 }

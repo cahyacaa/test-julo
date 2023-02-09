@@ -7,6 +7,7 @@ import (
 	"github.com/cahyacaa/test-julo/internal/app/pkg/redis"
 	"github.com/cahyacaa/test-julo/internal/app/usecase"
 	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 func Router(ctx context.Context, r *gin.Engine) *gin.Engine {
@@ -17,19 +18,18 @@ func Router(ctx context.Context, r *gin.Engine) *gin.Engine {
 	walletController := handler.NewWallerHandler(walletUcase)
 
 	//router non middleware
-	r.POST("/api/v1/init", walletController.InitWalletAccount)
+	r.POST("/init", walletController.InitWalletAccount)
 
 	//init wallet router
 	walletRouter := r.Group("/api/v1")
 
 	// middleware for wallet router group
-	walletRouter.Use(middleware.Authorization(ctx, redisService))
-	walletRouter.POST("/wallet", walletController.EnableWallet)
-	walletRouter.PATCH("/wallet")
-
-	walletFeatureRouter := walletRouter.Group("")
-	walletFeatureRouter.Use(middleware.CheckWalletStatusHandler(ctx, redisService))
-	walletFeatureRouter.GET("/wallet", walletController.CheckBalance)
+	walletRouter.Use(middleware.CheckWalletStatusHandler(ctx, redisService))
+	walletRouter.GET("/wallet", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "OK",
+		})
+	})
 
 	return r
 }
