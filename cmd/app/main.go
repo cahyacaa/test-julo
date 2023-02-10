@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,12 +14,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var env = flag.Bool("prod", false, "run balance processor")
+
 func main() {
+	flag.Parse()
+
 	//init context
 	ctx := context.Background()
-
 	//init global config
-	config.InitializeConfig()
+	config.InitializeConfig(*env)
 
 	// init router
 	r := gin.Default()

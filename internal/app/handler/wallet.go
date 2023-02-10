@@ -23,9 +23,9 @@ func (w *Wallet) InitWalletAccount(c *gin.Context) {
 	var req domain.InitWalletAccountRequest
 	err := c.Bind(&req)
 	if err != nil {
-		l := err.(validator.ValidationErrors)[0].Field()
-		response := responseFormat.HandleError(l, http.StatusBadRequest)
-		c.JSON(http.StatusInternalServerError, response)
+		field := err.(validator.ValidationErrors)[0].Field()
+		response := responseFormat.HandleError(field, http.StatusBadRequest)
+		c.JSON(response.StatusCode, response)
 		return
 	}
 

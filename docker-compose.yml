@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  db:
+    image: redis:6.2-alpine
+    restart: always
+    command: redis-server --save 20 1 --loglevel debug
+    ports:
+      - 6380:6379
+    volumes:
+      - db:/data
+    networks:
+      - redis
+
+  app:
+    restart: always
+    depends_on:
+      - db
+    build: .
+    ports:
+      - "9000:9000"
+    environment:
+      - APP_HOST=0.0.0.0
+      - APP_PORT=9000
+      - REDIS_DB=0
+      - REDIS_HOST=db
+      - REDIS_PORT=6379
+      - REDIS_USERNAME=
+      - REDIS_PASSWORD=
+      - REDIS_LOCK_TIME=100
+
+    networks:
+      - redis
+
+networks:
+  redis:
+    driver: bridge
+
+volumes:
+  db:
+    driver: local

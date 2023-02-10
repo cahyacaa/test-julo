@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/ilyakaznacheev/cleanenv"
 	"log"
 )
@@ -14,10 +15,15 @@ type Config struct {
 	Cache Cache
 }
 
-func InitializeConfig() {
+func InitializeConfig(isProdEnv bool) {
 	var cfg Config
-
-	err := cleanenv.ReadConfig(path, &cfg)
+	var err error
+	if isProdEnv {
+		err = cleanenv.ReadEnv(&cfg)
+	} else {
+		err = cleanenv.ReadConfig(path, &cfg)
+	}
+	fmt.Println(cfg)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

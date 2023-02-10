@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/cahyacaa/test-julo/cmd/config"
 	"sort"
 	"time"
 
@@ -131,7 +132,7 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 
 	}()
 
-	lock, err = w.RedisService.RedisLock.Obtain(ctx, helpers.GenerateKey(referenceID), 100*time.Millisecond, nil)
+	lock, err = w.RedisService.RedisLock.Obtain(ctx, helpers.GenerateKey(referenceID), helpers.GenerateDuration(config.GlobalConfig.Cache.LockTime), nil)
 	if err != nil {
 		return
 	}
@@ -206,7 +207,7 @@ func (w *Wallet) Withdrawals(ctx context.Context, customerID, referenceID string
 		}
 	}()
 
-	lock, err = w.RedisService.RedisLock.Obtain(ctx, helpers.GenerateKey(referenceID), 100*time.Millisecond, nil)
+	lock, err = w.RedisService.RedisLock.Obtain(ctx, helpers.GenerateKey(referenceID), helpers.GenerateDuration(config.GlobalConfig.Cache.LockTime), nil)
 	if err != nil {
 		return
 	}
