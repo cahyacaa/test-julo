@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/bsm/redislock"
@@ -44,7 +45,10 @@ func (w *Wallet) InitWallet(ctx context.Context, customerID string) (token strin
 	return walletToken, nil
 }
 
-func (w *Wallet) EnableWallet(ctx context.Context, customerID string) (wallet domain.WalletData, err error) {
+func (w *Wallet) EnableWallet(ctx context.Context, customerID string) (enabledWalletData domain.EnabledWallet, err error) {
+	var wallet domain.WalletData
+	timeNow := time.Now().UTC()
+
 	err = w.RedisService.Get(ctx, helpers.GenerateKey(customerID, domain.Wallet), &wallet)
 
 	if err != nil {
@@ -52,12 +56,48 @@ func (w *Wallet) EnableWallet(ctx context.Context, customerID string) (wallet do
 	}
 
 	if !wallet.IsDisabled {
-		return wallet, errors.New("Already enabled")
+		return enabledWalletData, errors.New("Already enabled")
 	}
 
 	wallet.IsDisabled = false
-	wallet.EnabledAt = time.Now().UTC()
+	wallet.EnabledAt = timeNow
 
+	enabledWalletData = domain.EnabledWallet{
+		ID:        customerID,
+		OwnedBy:   customerID,
+		Status:    domain.Enabled,
+		EnabledAt: timeNow,
+		Balance:   wallet.Balance,
+	}
+	err = w.RedisService.Set(ctx, helpers.GenerateKey(customerID, domain.Wallet), &wallet)
+
+	return
+}
+
+func (w *Wallet) DisableWallet(ctx context.Context, customerID string) (disabledWalletData domain.DisabledWallet, err error) {
+	var wallet domain.WalletData
+	timeNow := time.Now().UTC()
+
+	err = w.RedisService.Get(ctx, helpers.GenerateKey(customerID, domain.Wallet), &wallet)
+
+	if err != nil {
+		return
+	}
+
+	if wallet.IsDisabled {
+		return disabledWalletData, errors.New("Already disabled")
+	}
+
+	wallet.IsDisabled = true
+	wallet.EnabledAt = timeNow
+
+	disabledWalletData = domain.DisabledWallet{
+		ID:         customerID,
+		OwnedBy:    customerID,
+		Status:     domain.Disabled,
+		DisabledAt: timeNow,
+		Balance:    wallet.Balance,
+	}
 	err = w.RedisService.Set(ctx, helpers.GenerateKey(customerID, domain.Wallet), &wallet)
 
 	return
@@ -75,18 +115,20 @@ func (w *Wallet) Deposits(ctx context.Context, customerID, referenceID string, a
 
 	// Don't forget to defer Release.
 	defer func() {
+		if err != nil {
+			//create failed transaction
+			transactionData.Status = domain.Failed
+			errSetFailed := w.RedisService.HsetNX(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
+			if errSetFailed != nil {
+				return
+			}
+		}
 		errLock := lock.Release(ctx)
 		if errLock != nil {
 			err = errLock
 			return
 		}
 
-		//create failed transaction
-		transactionData.Status = domain.Failed
-		errSetFailed := w.RedisService.Hset(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
-		if errSetFailed != nil {
-			return
-		}
 	}()
 
 	lock, err = w.RedisService.RedisLock.Obtain(ctx, helpers.GenerateKey(referenceID), 100*time.Millisecond, nil)
@@ -148,17 +190,18 @@ func (w *Wallet) Withdrawals(ctx context.Context, customerID, referenceID string
 
 	// Don't forget to defer Release.
 	defer func() {
+		if err != nil {
+			//create failed transaction
+			transactionData.Status = domain.Failed
+			errSetFailed := w.RedisService.HsetNX(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
+			if errSetFailed != nil {
+				err = errSetFailed
+				return
+			}
+		}
 		errLock := lock.Release(ctx)
 		if errLock != nil {
 			err = errLock
-			return
-		}
-
-		//create failed transaction
-		transactionData.Status = domain.Failed
-		errSetFailed := w.RedisService.HsetNX(ctx, helpers.GenerateKey(customerID, domain.Transaction), referenceID, &transactionData)
-		if errSetFailed != nil {
-			err = errSetFailed
 			return
 		}
 	}()
@@ -234,11 +277,16 @@ func (w *Wallet) ViewTransactions(ctx context.Context, customerID string) (trans
 		return
 	}
 
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].TransactedAt.Before(transactions[j].TransactedAt)
+	})
+
 	return
 }
 
 func (w *Wallet) initWallet(ctx context.Context, customerID string) (err error) {
 	err = w.RedisService.SetNX(ctx, helpers.GenerateKey(customerID, domain.Wallet), domain.WalletData{
+		ID:         customerID,
 		CustomerID: customerID,
 		Balance:    0,
 		IsDisabled: false,

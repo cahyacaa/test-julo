@@ -30,14 +30,14 @@ func Router(ctx context.Context, r *gin.Engine, dep Dependency) *gin.Engine {
 	// middleware for wallet router group
 	walletRouter.Use(middleware.Authorization(ctx, dep.RedisService))
 	walletRouter.POST("/wallet", walletController.EnableWallet)
-	walletRouter.PATCH("/wallet")
+	walletRouter.PATCH("/wallet", walletController.DisableWallet)
 
-	walletFeatureRouter := walletRouter.Group("")
-	walletFeatureRouter.Use(middleware.CheckWalletStatusHandler(ctx, dep.RedisService))
-	walletFeatureRouter.GET("/wallet", walletController.CheckBalance)
-	walletFeatureRouter.GET("/wallet/transactions", walletController.ViewTransactions)
-	walletFeatureRouter.POST("/wallet/deposits", walletController.Deposits)
-	walletFeatureRouter.POST("/wallet/withdrawals", walletController.Withdrawals)
+	walletTransactionRouter := walletRouter.Group("")
+	walletTransactionRouter.Use(middleware.CheckWalletStatusHandler(ctx, dep.RedisService))
+	walletTransactionRouter.GET("/wallet", walletController.CheckBalance)
+	walletTransactionRouter.GET("/wallet/transactions", walletController.ViewTransactions)
+	walletTransactionRouter.POST("/wallet/deposits", walletController.Deposits)
+	walletTransactionRouter.POST("/wallet/withdrawals", walletController.Withdrawals)
 
 	return r
 }

@@ -1,14 +1,12 @@
 package handler
 
 import (
-	"net/http"
-	"time"
-
 	"github.com/cahyacaa/test-julo/internal/app/domain"
 	responseFormat "github.com/cahyacaa/test-julo/internal/app/pkg/response_format"
 	"github.com/cahyacaa/test-julo/internal/app/usecase"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"net/http"
 )
 
 type Wallet struct {
@@ -66,24 +64,21 @@ func (w *Wallet) CheckBalance(c *gin.Context) {
 
 	//convert to response field
 	data := domain.WalletResponse{
-		Wallet: struct {
-			ID        string              `json:"id"`
-			OwnedBy   string              `json:"owned_by"`
-			Balance   float64             `json:"balance"`
-			Status    domain.WalletStatus `json:"status"`
-			EnabledAt time.Time           `json:"enabled_at"`
-		}{
-			ID:        wallet.CustomerID,
-			OwnedBy:   wallet.CustomerID,
-			Balance:   wallet.Balance,
-			EnabledAt: wallet.EnabledAt,
+		Wallet: domain.WalletResponseData{
+			ID:      wallet.CustomerID,
+			OwnedBy: wallet.CustomerID,
+			Balance: wallet.Balance,
 		},
 	}
 
-	if wallet.IsDisabled {
-		data.Wallet.Status = domain.Disabled
-	} else {
+	if !wallet.IsDisabled {
 		data.Wallet.Status = domain.Enabled
+		data.Wallet.EnabledAt = &wallet.EnabledAt
+		data.Wallet.DisabledAt = nil
+	} else {
+		data.Wallet.Status = domain.Disabled
+		data.Wallet.DisabledAt = &wallet.DisabledAt
+		data.Wallet.EnabledAt = nil
 	}
 	response := responseFormat.HandleSuccess[domain.WalletResponse](data)
 	c.JSON(response.StatusCode, response)
@@ -130,24 +125,53 @@ func (w *Wallet) EnableWallet(c *gin.Context) {
 
 	//convert to response field
 	data := domain.WalletResponse{
-		Wallet: struct {
-			ID        string              `json:"id"`
-			OwnedBy   string              `json:"owned_by"`
-			Balance   float64             `json:"balance"`
-			Status    domain.WalletStatus `json:"status"`
-			EnabledAt time.Time           `json:"enabled_at"`
-		}{
-			ID:        wallet.CustomerID,
-			OwnedBy:   wallet.CustomerID,
-			Balance:   wallet.Balance,
-			EnabledAt: wallet.EnabledAt,
+		Wallet: domain.WalletResponseData{
+			ID:      wallet.ID,
+			OwnedBy: wallet.OwnedBy,
+			Balance: wallet.Balance,
+			Status:  wallet.Status,
 		},
 	}
-	if wallet.IsDisabled {
-		data.Wallet.Status = domain.Disabled
-	} else {
-		data.Wallet.Status = domain.Enabled
+
+	if wallet.Status == domain.Enabled {
+		data.Wallet.EnabledAt = &wallet.EnabledAt
+		data.Wallet.DisabledAt = nil
 	}
+
+	response := responseFormat.HandleSuccess[domain.WalletResponse](data)
+	c.JSON(response.StatusCode, response)
+}
+
+func (w *Wallet) DisableWallet(c *gin.Context) {
+	var customerID string
+
+	if val, ok := c.Get("customer_id"); ok {
+		customerID = val.(string)
+	}
+
+	wallet, err := w.WalletUsecase.DisableWallet(c, customerID)
+
+	if err != nil {
+		response := responseFormat.HandleError(err.Error(), http.StatusBadRequest)
+		c.JSON(response.StatusCode, response)
+		return
+	}
+
+	//convert to response field
+	data := domain.WalletResponse{
+		Wallet: domain.WalletResponseData{
+			ID:      wallet.ID,
+			OwnedBy: wallet.OwnedBy,
+			Balance: wallet.Balance,
+			Status:  wallet.Status,
+		},
+	}
+
+	if wallet.Status == domain.Disabled {
+		data.Wallet.DisabledAt = &wallet.DisabledAt
+		data.Wallet.EnabledAt = nil
+	}
+
 	response := responseFormat.HandleSuccess[domain.WalletResponse](data)
 	c.JSON(response.StatusCode, response)
 }
